@@ -154,127 +154,136 @@ describe('createPluginPaths', () => {
     ).rejects.toThrow(/plugin storage unavailable/iu);
   });
 
-  it('fails closed when a newly created path component is swapped with a symlink', async () => {
-    const roots = await makeRoots();
-    const outside = await mkdtemp(path.join(os.tmpdir(), 'harbors-plugin-swap-outside-'));
-    temporaryRoots.push(outside);
-    let swapped = false;
-    let postSwapMkdirCount = 0;
-    let postSwapChmodCount = 0;
-    const fileSystem = {
-      lstat,
-      openDirectory,
-      async mkdir(candidate: string, options: Parameters<typeof mkdir>[1]) {
-        if (swapped) postSwapMkdirCount += 1;
-        await mkdir(candidate, options);
-        const plugins = path.join(roots.applicationData, 'plugins');
-        if (!swapped && candidate === plugins) {
-          swapped = true;
-          await rename(plugins, `${plugins}-original`);
-          await symlink(outside, plugins, 'dir');
-        }
-      },
-      async chmod(candidate: string, mode: number) {
-        if (swapped) postSwapChmodCount += 1;
-        await chmod(candidate, mode);
-      },
-      realpath: (candidate: string) =>
-        import('node:fs/promises').then((fs) => fs.realpath(candidate)),
-    };
-
-    await expect(
-      createPluginPaths(
-        {
-          roots,
-          owner: '@itharbors/example-plugin',
-          legacyDataDirectories: [],
-        },
-        fileSystem,
-      ),
-    ).rejects.toThrow(/plugin storage unavailable/iu);
-    expect(swapped).toBe(true);
-    expect(postSwapMkdirCount).toBe(0);
-    expect(postSwapChmodCount).toBe(0);
-    await expect(lstat(path.join(outside, 'data'))).rejects.toMatchObject({ code: 'ENOENT' });
-  });
-
-  it('detects a parent-path swap during data mkdir without attempting pathname cleanup', async () => {
-    const roots = await makeRoots();
-    const outside = await mkdtemp(path.join(os.tmpdir(), 'harbors-plugin-mkdir-race-'));
-    temporaryRoots.push(outside);
-    await mkdir(path.join(roots.applicationData, 'plugins'), { mode: 0o700 });
-    let swapped = false;
-    const fileSystem = {
-      lstat,
-      realpath,
-      openDirectory,
-      chmod,
-      async mkdir(candidate: string, options: { mode: number }) {
-        if (!swapped && path.basename(candidate) === 'data') {
-          swapped = true;
+  it.skipIf(process.platform === 'win32')(
+    'fails closed when a newly created path component is swapped with a symlink',
+    async () => {
+      const roots = await makeRoots();
+      const outside = await mkdtemp(path.join(os.tmpdir(), 'harbors-plugin-swap-outside-'));
+      temporaryRoots.push(outside);
+      let swapped = false;
+      let postSwapMkdirCount = 0;
+      let postSwapChmodCount = 0;
+      const fileSystem = {
+        lstat,
+        openDirectory,
+        async mkdir(candidate: string, options: Parameters<typeof mkdir>[1]) {
+          if (swapped) postSwapMkdirCount += 1;
+          await mkdir(candidate, options);
           const plugins = path.join(roots.applicationData, 'plugins');
-          await rename(plugins, `${plugins}-original`);
-          await symlink(outside, plugins, 'dir');
-        }
-        await mkdir(candidate, options);
-      },
-    };
-
-    await expect(
-      createPluginPaths(
-        {
-          roots,
-          owner: '@itharbors/example-plugin',
-          legacyDataDirectories: [],
+          if (!swapped && candidate === plugins) {
+            swapped = true;
+            await rename(plugins, `${plugins}-original`);
+            await symlink(outside, plugins, 'dir');
+          }
         },
-        fileSystem,
-      ),
-    ).rejects.toThrow(/plugin storage unavailable/iu);
-    expect(swapped).toBe(true);
-    expect((await lstat(path.join(outside, 'data'))).isDirectory()).toBe(true);
-  });
+        async chmod(candidate: string, mode: number) {
+          if (swapped) postSwapChmodCount += 1;
+          await chmod(candidate, mode);
+        },
+        realpath: (candidate: string) =>
+          import('node:fs/promises').then((fs) => fs.realpath(candidate)),
+      };
 
-  it('fchmods the opened directory inode when its normal path is swapped', async () => {
-    const roots = await makeRoots();
-    const outside = await mkdtemp(path.join(os.tmpdir(), 'harbors-plugin-chmod-race-'));
-    temporaryRoots.push(outside);
-    await chmod(outside, 0o755);
-    let swapped = false;
-    const fileSystem = {
-      lstat,
-      realpath,
-      mkdir,
-      chmod,
-      async openDirectory(candidate: string) {
-        const handle = await openDirectory(candidate);
-        return {
-          ...handle,
-          async fchmod(mode: number) {
-            if (!swapped && path.basename(candidate) === 'data') {
-              swapped = true;
-              const data = path.join(roots.applicationData, 'plugins', 'data');
-              await rename(data, `${data}-original`);
-              await symlink(outside, data, 'dir');
-            }
-            await handle.fchmod(mode);
+      await expect(
+        createPluginPaths(
+          {
+            roots,
+            owner: '@itharbors/example-plugin',
+            legacyDataDirectories: [],
           },
-        };
-      },
-    };
+          fileSystem,
+        ),
+      ).rejects.toThrow(/plugin storage unavailable/iu);
+      expect(swapped).toBe(true);
+      expect(postSwapMkdirCount).toBe(0);
+      expect(postSwapChmodCount).toBe(0);
+      await expect(lstat(path.join(outside, 'data'))).rejects.toMatchObject({ code: 'ENOENT' });
+    },
+  );
 
-    await expect(
-      createPluginPaths(
-        {
-          roots,
-          owner: '@itharbors/example-plugin',
-          legacyDataDirectories: [],
+  it.skipIf(process.platform === 'win32')(
+    'detects a parent-path swap during data mkdir without attempting pathname cleanup',
+    async () => {
+      const roots = await makeRoots();
+      const outside = await mkdtemp(path.join(os.tmpdir(), 'harbors-plugin-mkdir-race-'));
+      temporaryRoots.push(outside);
+      await mkdir(path.join(roots.applicationData, 'plugins'), { mode: 0o700 });
+      let swapped = false;
+      const fileSystem = {
+        lstat,
+        realpath,
+        openDirectory,
+        chmod,
+        async mkdir(candidate: string, options: { mode: number }) {
+          if (!swapped && path.basename(candidate) === 'data') {
+            swapped = true;
+            const plugins = path.join(roots.applicationData, 'plugins');
+            await rename(plugins, `${plugins}-original`);
+            await symlink(outside, plugins, 'dir');
+          }
+          await mkdir(candidate, options);
         },
-        fileSystem,
-      ),
-    ).rejects.toThrow(/plugin storage unavailable/iu);
-    expect(swapped).toBe(true);
-    expect((await stat(outside)).mode & 0o777).toBe(0o755);
-  });
+      };
+
+      await expect(
+        createPluginPaths(
+          {
+            roots,
+            owner: '@itharbors/example-plugin',
+            legacyDataDirectories: [],
+          },
+          fileSystem,
+        ),
+      ).rejects.toThrow(/plugin storage unavailable/iu);
+      expect(swapped).toBe(true);
+      expect((await lstat(path.join(outside, 'data'))).isDirectory()).toBe(true);
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'fchmods the opened directory inode when its normal path is swapped',
+    async () => {
+      const roots = await makeRoots();
+      const outside = await mkdtemp(path.join(os.tmpdir(), 'harbors-plugin-chmod-race-'));
+      temporaryRoots.push(outside);
+      await chmod(outside, 0o755);
+      let swapped = false;
+      const fileSystem = {
+        lstat,
+        realpath,
+        mkdir,
+        chmod,
+        async openDirectory(candidate: string) {
+          const handle = await openDirectory(candidate);
+          return {
+            ...handle,
+            async fchmod(mode: number) {
+              if (!swapped && path.basename(candidate) === 'data') {
+                swapped = true;
+                const data = path.join(roots.applicationData, 'plugins', 'data');
+                await rename(data, `${data}-original`);
+                await symlink(outside, data, 'dir');
+              }
+              await handle.fchmod(mode);
+            },
+          };
+        },
+      };
+
+      await expect(
+        createPluginPaths(
+          {
+            roots,
+            owner: '@itharbors/example-plugin',
+            legacyDataDirectories: [],
+          },
+          fileSystem,
+        ),
+      ).rejects.toThrow(/plugin storage unavailable/iu);
+      expect(swapped).toBe(true);
+      expect((await stat(outside)).mode & 0o777).toBe(0o755);
+    },
+  );
 
   it('rejects unsafe or non-absolute inputs without leaking another root', async () => {
     const roots = await makeRoots();

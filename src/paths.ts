@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, open, realpath } from 'node:fs/promises';
-import type { Stats } from 'node:fs';
+import type { BigIntStats, Stats } from 'node:fs';
 import { constants } from 'node:fs';
 import path from 'node:path';
 
@@ -25,7 +25,7 @@ export interface CreatePluginPathsOptions {
 }
 
 export interface PluginPathFileSystem {
-  lstat(candidate: string): Promise<Stats>;
+  lstat(candidate: string): Promise<DirectoryStats>;
   realpath(candidate: string): Promise<string>;
   mkdir(candidate: string, options: { mode: number }): Promise<string | undefined | void>;
   openDirectory(candidate: string): Promise<PluginDirectoryHandle>;
@@ -33,13 +33,15 @@ export interface PluginPathFileSystem {
 
 export interface PluginDirectoryHandle {
   readonly fd: number;
-  stat(): Promise<Stats>;
+  stat(): Promise<DirectoryStats>;
   fchmod(mode: number): Promise<void>;
   close(): Promise<void>;
 }
 
+type DirectoryStats = Stats | BigIntStats;
+
 const defaultFileSystem: PluginPathFileSystem = {
-  lstat,
+  lstat: (candidate) => lstat(candidate, { bigint: true }),
   realpath,
   mkdir,
   async openDirectory(candidate) {
@@ -49,7 +51,7 @@ const defaultFileSystem: PluginPathFileSystem = {
     );
     return {
       fd: handle.fd,
-      stat: () => handle.stat(),
+      stat: () => handle.stat({ bigint: true }),
       fchmod: (mode) => handle.chmod(mode),
       close: () => handle.close(),
     };
@@ -255,7 +257,7 @@ async function ensurePrivateDirectoryChain(
 }
 
 interface DirectoryIdentity {
-  stats: Stats;
+  stats: DirectoryStats;
   realPath: string;
   handle: PluginDirectoryHandle;
 }
@@ -310,12 +312,12 @@ async function closeDirectory(handle: PluginDirectoryHandle): Promise<void> {
   }
 }
 
-function assertDirectory(stats: Stats): void {
+function assertDirectory(stats: DirectoryStats): void {
   if (stats.isSymbolicLink() || !stats.isDirectory()) throw new PluginStorageUnavailableError();
 }
 
-function assertSameIdentity(before: Stats, after: Stats): void {
-  if (before.dev !== after.dev || before.ino !== after.ino) {
+function assertSameIdentity(before: DirectoryStats, after: DirectoryStats): void {
+  if (String(before.dev) !== String(after.dev) || String(before.ino) !== String(after.ino)) {
     throw new PluginStorageUnavailableError();
   }
 }
