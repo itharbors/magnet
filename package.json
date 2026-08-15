@@ -1,0 +1,74 @@
+{
+  "name": "@itharbors/magnet",
+  "version": "0.0.1",
+  "description": "A host-agnostic plugin runtime for Harbors-compatible Node.js applications.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./manifest": {
+      "types": "./dist/manifest.d.ts",
+      "import": "./dist/manifest.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build && npm run package:check",
+    "clean": "node scripts/clean.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "package:check": "publint && node scripts/verify-package.mjs",
+    "prepack": "npm run clean && npm run build",
+    "test": "vitest run --coverage",
+    "test:unit": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "harbors",
+    "plugin",
+    "plugin-system",
+    "runtime"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itharbors/magnet.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itharbors/magnet/issues"
+  },
+  "homepage": "https://github.com/itharbors/magnet#readme",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "semver": "^7.8.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.2.0",
+    "@types/semver": "^7.8.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "eslint": "^10.0.1",
+    "prettier": "^3.9.6",
+    "publint": "^0.3.23",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.67.0",
+    "vitest": "^4.1.10"
+  },
+  "packageManager": "npm@10.9.3"
+}
