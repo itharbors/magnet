@@ -78,6 +78,15 @@ function portableRelativePath(value: unknown, context: string): string {
   return parsed;
 }
 
+function isDistJavaScriptEntry(value: string): boolean {
+  const normalized = value.startsWith('./') ? value.slice(2) : value;
+  const parts = normalized.split('/');
+  const distIndex = parts.indexOf('dist');
+  if (distIndex < 0 || distIndex === parts.length - 1) return false;
+  const filename = parts.at(-1) ?? '';
+  return filename.endsWith('.js') || filename.endsWith('.mjs') || filename.endsWith('.cjs');
+}
+
 function stringArray(value: unknown, context: string): string[] {
   if (!Array.isArray(value)) throw new Error(`${context} must be an array`);
   const result = value.map((item, index) => nonEmptyString(item, `${context}[${index}]`));
@@ -152,7 +161,7 @@ export function parsePluginPackageManifest(value: unknown): PluginPackageManifes
   if (semver.valid(version) !== version)
     throw new Error(`Plugin ${name} version must be canonical SemVer`);
   const main = portableRelativePath(pkg.main, `Plugin ${name} main`);
-  if (!/(^|\/)dist\/.+\.(?:mjs|cjs|js)$/u.test(main)) {
+  if (!isDistJavaScriptEntry(main)) {
     throw new Error(`Plugin ${name} main must point to a dist JavaScript entry`);
   }
 

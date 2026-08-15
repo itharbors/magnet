@@ -40,6 +40,16 @@ describe('parsePluginPackageManifest', () => {
     expect(parsePluginPackageManifest(legacy).schemaVersion).toBe(1);
   });
 
+  it('validates dist JavaScript entries without backtracking over repeated path segments', () => {
+    const repeated = `${'dist/'.repeat(10_000)}index.txt`;
+    expect(() => parsePluginPackageManifest({ ...manifest, main: repeated })).toThrow(
+      /dist JavaScript/i,
+    );
+    expect(
+      parsePluginPackageManifest({ ...manifest, main: './main/dist/nested/index.mjs' }).main,
+    ).toBe('./main/dist/nested/index.mjs');
+  });
+
   it.each([
     [{ ...manifest, version: 'latest' }, /SemVer/i],
     [{ ...manifest, main: '../index.js' }, /portable relative/i],
