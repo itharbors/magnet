@@ -273,7 +273,9 @@ async function observeStableDirectory(
   try {
     const opened = await handle.stat();
     assertDirectory(opened);
-    assertSameIdentity(before, opened);
+    // Node does not expose the same directory file ID through path and handle stats on Windows.
+    // Compare each observation channel over time there; Unix can additionally bind path to handle.
+    if (process.platform !== 'win32') assertSameIdentity(before, opened);
     const realPath = await fileSystem.realpath(candidate);
     if (applicationRealPath && !isWithin(applicationRealPath, realPath)) {
       throw new PluginStorageUnavailableError();
