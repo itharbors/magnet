@@ -343,7 +343,7 @@ describe('session runtime capabilities', () => {
     await module.load(pluginPath, options);
     const result = module.callPlugin('@example/runtime-api', 'exercise');
 
-    expect(result).toMatchObject({ data: expect.stringContaining('/plugins/data/') });
+    expect((result as { data: string }).data).toContain(path.join('plugins', 'data'));
     expect(options.host.panel.register).toHaveBeenCalledWith(
       '@example/runtime-api.main',
       '/panel.js',
